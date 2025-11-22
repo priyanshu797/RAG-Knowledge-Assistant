@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RAG Knowledge Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            height: 100%;
+            height: -webkit-fill-available;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            height: 100vh;
+            height: -webkit-fill-available;
+            display: flex;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+            top: -200px;
+            left: -200px;
+            animation: float 20s infinite ease-in-out;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+            bottom: -150px;
+            right: -150px;
+            animation: float 15s infinite ease-in-out reverse;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0);
+            }
+            50% {
+                transform: translate(50px, 50px);
+            }
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(59, 130, 246, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            z-index: 10;
+            height: 100%;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            border-right: none;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header h3 {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 15px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .history-item {
+            padding: 12px 15px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #cbd5e1;
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .history-item:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.4);
+            transform: translateX(4px);
+        }
+
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            flex-shrink: 0;
+        }
+
+        .clear-btn {
+            width: 100%;
+            padding: 10px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #6366f1 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: shimmer 3s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .sidebar-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 20px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 20px rgba(251, 191, 36, 0.4);
+            position: relative;
+            z-index: 2;
+            animation: pulse 2s infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .header-text {
+            position: relative;
+            z-index: 2;
+            flex: 1;
+        }
+
+        .header-text h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 3px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-text p {
+            font-size: 12px;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+
+        /* Content Container */
+        .content-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+            min-height: 0;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            padding: 25px 30px;
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+            flex-shrink: 0;
+            overflow-y: auto;
+            max-height: 35vh;
+        }
+
+        .upload-box {
+            border: 2px dashed rgba(59, 130, 246, 0.5);
+            border-radius: 14px;
+            padding: 25px;
+            text-align: center;
+            background: rgba(30, 58, 138, 0.1);
+            cursor: pointer;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-box::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            transition: all 0.6s ease;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .upload-box:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .upload-box:hover {
+            border-color: rgba(99, 102, 241, 0.8);
+            background: rgba(30, 58, 138, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .upload-box.dragover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.15);
+            transform: scale(1.02);
+            box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 10px rgba(59, 130, 246, 0.5));
+            position: relative;
+            z-index: 1;
+        }
+
+        .upload-box h3 {
+            color: #e2e8f0;
+            margin-bottom: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .upload-box p {
+            color: #94a3b8;
+            font-size: 13px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .file-tag {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+
+        .file-tag:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .file-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.9;
+            transition: all 0.3s ease;
+            width: 18px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+        }
+
+        .file-tag .remove:hover {
+            opacity: 1;
+            background: rgba(239, 68, 68, 0.8);
+            transform: rotate(90deg);
+        }
+
+        .process-btn {
+            margin-top: 12px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #6366f1 100%);
+            color: white;
+            border: none;
+            padding: 11px 28px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+
+        .process-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+        }
+
+        .process-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Chat Section */
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            min-height: 0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 25px 30px;
+            padding-bottom: 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: rgba(15, 23, 42, 0.6);
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .user-message .message-avatar {
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+        }
+
+        .bot-message .message-avatar {
+            background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+        }
+
+        .message-content {
+            flex: 1;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 18px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .message-content:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .message-header {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message-text {
+            color: #cbd5e1;
+            line-height: 1.6;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+
+        .message-sources {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .source-item {
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .loading {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.6);
+        }
+
+        .loading-dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .loading-dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Typing Animation */
+        .token {
+            display: inline;
+            animation: tokenAppear 0.3s ease;
+        }
+
+        @keyframes tokenAppear {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Input Section */
+        .input-section {
+            padding: 18px 30px;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 14px 20px;
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+            background: rgba(15, 23, 42, 0.8);
+            color: #e2e8f0;
+            resize: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .message-input::placeholder {
+            color: #64748b;
+        }
+
+        .message-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #6366f1 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 6px 25px rgba(59, 130, 246, 0.7);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 40px 30px;
+            color: #94a3b8;
+        }
+
+        .status-message .icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 4px 20px rgba(59, 130, 246, 0.4));
+        }
+
+        .status-message h3 {
+            color: #e2e8f0;
+            font-size: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .status-message p {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .llm-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .llm-groq {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .llm-ollama {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        /* Scrollbar */
+        .chat-messages::-webkit-scrollbar,
+        .sidebar-content::-webkit-scrollbar,
+        .upload-section::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track,
+        .upload-section::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb,
+        .upload-section::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #3b82f6 0%, #6366f1 100%);
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover,
+        .upload-section::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #2563eb 0%, #4f46e5 100%);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            html {
+                height: 100%;
+                height: -webkit-fill-available;
+            }
+
+            body {
+                position: fixed;
+                width: 100%;
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                height: -webkit-fill-available;
+                z-index: 100;
+                box-shadow: 2px 0 15px rgba(0, 0, 0, 0.5);
+            }
+
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+
+            .main-content {
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .header-text h1 {
+                font-size: 18px;
+            }
+
+            .logo {
+                width: 40px;
+                height: 40px;
+                font-size: 24px;
+            }
+
+            .upload-section {
+                padding: 15px 20px;
+                max-height: 30vh;
+            }
+
+            .upload-box {
+                padding: 20px;
+            }
+
+            .upload-icon {
+                font-size: 36px;
+                margin-bottom: 8px;
+            }
+
+            .chat-messages {
+                padding: 15px 20px;
+                padding-bottom: 20px;
+            }
+
+            .input-section {
+                padding: 12px 20px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+
+            .message {
+                gap: 10px;
+            }
+
+            .message-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 18px;
+            }
+
+            .message-content {
+                padding: 12px 14px;
+            }
+
+            .message-input {
+                font-size: 16px;
+                padding: 12px 18px;
+            }
+
+            .send-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar collapsed" id="sidebar">
+        <div class="sidebar-header">
+            <h3>📚 History</h3>
+            <button class="sidebar-close" id="sidebarClose">✕</button>
+        </div>
+        <div class="sidebar-content" id="sidebarContent">
+            <p style="color: #64748b; font-size: 12px; text-align: center; padding: 20px 0;">No history yet</p>
+        </div>
+        <div class="sidebar-footer">
+            <button class="clear-btn" id="clearBtn">Clear History</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="header">
+            <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+            <div class="logo">🧠</div>
+            <div class="header-text">
+                <h1>RAG Assistant</h1>
+                <p>Upload & query documents with AI</p>
+            </div>
+        </div>
+
+        <!-- Content Container -->
+        <div class="content-container">
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <div class="upload-box" id="uploadBox">
+                    <div class="upload-icon">📁</div>
+                    <h3>Upload Documents</h3>
+                    <p>Drag & drop or click (PDF, DOCX, TXT, CSV, JSON, Images, Audio, ZIP)</p>
+                    <input type="file" id="fileInput" class="file-input" multiple accept=".pdf,.docx,.txt,.csv,.json,.jpg,.jpeg,.png,.mp3,.wav,.mp4,.zip">
+                </div>
+                <div class="file-list" id="fileList"></div>
+                <button class="process-btn" id="processBtn" disabled>Process Documents</button>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="chat-section">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="status-message">
+                        <div class="icon">📚</div>
+                        <h3>Welcome to RAG Assistant</h3>
+                        <p>Upload documents to get started and ask questions about them!</p>
+                    </div>
+                </div>
+
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="input-container">
+                        <input type="text" id="messageInput" class="message-input" placeholder="Ask about your documents..." disabled>
+                        <button class="send-btn" id="sendBtn" disabled>➤</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL
+        const API_BASE = '';  // Same origin
+    
+        // State
+        let uploadedFiles = [];
+        let isProcessed = false;
+        let currentLLM = null;
+        let chatHistory = [];
+        let sidebarOpen = false;
+    
+        // Elements
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarClose = document.getElementById('sidebarClose');
+        const sidebarContent = document.getElementById('sidebarContent');
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const processBtn = document.getElementById('processBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearBtn = document.getElementById('clearBtn');
+    
+        // Initialize
+        window.addEventListener('load', () => {
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+        });
+    
+        // Sidebar toggle
+        sidebarToggle.addEventListener('click', () => {
+            sidebarOpen = !sidebarOpen;
+            sidebar.classList.toggle('collapsed', !sidebarOpen);
+        });
+    
+        sidebarClose.addEventListener('click', () => {
+            sidebarOpen = false;
+            sidebar.classList.add('collapsed');
+        });
+    
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all history?')) {
+                chatHistory = [];
+                sidebarContent.innerHTML =
+                    '<p style="color:#64748b;font-size:12px;text-align:center;padding:20px 0;">No history yet</p>';
+            }
+        });
+    
+        // Upload handling
+        uploadBox.addEventListener('click', () => fileInput.click());
+    
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+    
+        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+    
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+    
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    
+        function handleFiles(files) {
+            for (let file of files) {
+                if (!uploadedFiles.some(f => f.name === file.name)) {
+                    uploadedFiles.push(file);
+                }
+            }
+            updateFileList();
+        }
+    
+        function updateFileList() {
+            fileList.innerHTML = '';
+            uploadedFiles.forEach((file, index) => {
+                const fileTag = document.createElement('div');
+                fileTag.className = 'file-tag';
+                fileTag.innerHTML = `
+                    <span>📄 ${file.name}</span>
+                    <span class="remove" data-index="${index}">✕</span>
+                `;
+                fileTag.querySelector('.remove').addEventListener('click', () => removeFile(index));
+                fileList.appendChild(fileTag);
+            });
+            processBtn.disabled = uploadedFiles.length === 0;
+        }
+    
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            updateFileList();
+        }
+    
+        // Process documents (call backend)
+        processBtn.addEventListener('click', async () => {
+            if (uploadedFiles.length === 0) return;
+    
+            processBtn.disabled = true;
+            processBtn.textContent = 'Processing...';
+    
+            const formData = new FormData();
+            uploadedFiles.forEach(f => formData.append("files", f));
+    
+            const res = await fetch('/api/upload', {
+                method: "POST",
+                body: formData
+            });
+    
+            const result = await res.json();
+    
+            if (!result.success) {
+                alert("Upload failed: " + result.error);
+                processBtn.disabled = false;
+                processBtn.textContent = 'Process Documents';
+                return;
+            }
+    
+            checkProcessingStatus();
+        });
+    
+        async function checkProcessingStatus() {
+            const interval = setInterval(async () => {
+                const res = await fetch('/api/status');
+                const status = await res.json();
+    
+                if (!status.processing && status.index_ready) {
+                    clearInterval(interval);
+    
+                    currentLLM = status.llm_type;
+                    isProcessed = true;
+    
+                    messageInput.disabled = false;
+                    sendBtn.disabled = false;
+    
+                    addMessage(
+                        'bot',
+                        `✨ Documents processed successfully! Using ${currentLLM.toUpperCase()} LLM.`,
+                        currentLLM
+                    );
+    
+                    processBtn.textContent = '✓ Processed';
+                }
+            }, 1000);
+        }
+    
+        // Query message
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    
+        async function sendMessage() {
+            const question = messageInput.value.trim();
+            if (!question || !isProcessed) return;
+    
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+    
+            addMessage('user', question);
+            chatHistory.push(question);
+            updateSidebar();
+            messageInput.value = '';
+    
+            const loadingId = addLoadingMessage();
+    
+            // REAL backend call
+            const res = await fetch('/api/query', {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({query: question})
+            });
+    
+            const result = await res.json();
+    
+            // Remove loading
+            const loadingElement = document.getElementById(loadingId);
+            if (loadingElement) loadingElement.remove();
+    
+            if (!result.success) {
+                addMessage('bot', "❌ " + result.error);
+            } else {
+                await addStreamingMessage('bot', result.response, currentLLM, result.sources);
+            }
+    
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+            messageInput.focus();
+        }
+    
+        // Token streaming effect
+        async function addStreamingMessage(type, text, llm = null, sources = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+    
+            const avatar = type === 'user' ? '👤' : '🤖';
+            const name = type === 'user' ? 'You' : 'Assistant';
+    
+            const llmBadge = llm ? `<span class="llm-badge llm-${llm}">${llm}</span>` : '';
+    
+            let sourcesHTML = '';
+            if (sources?.length > 0) {
+                sourcesHTML = '<div class="message-sources">📄 Sources:';
+                sources.forEach(src => {
+                    sourcesHTML += `<div class="source-item">• ${src}</div>`;
+                });
+                sourcesHTML += '</div>';
+            }
+    
+            const messageId = 'msg-' + Date.now();
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-header">${name}${llmBadge}</div>
+                    <div class="message-text" id="${messageId}"></div>
+                    ${sourcesHTML}
+                </div>
+            `;
+    
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+            const textElement = document.getElementById(messageId);
+            const tokens = text.split(/(\s+|\n)/);
+    
+            for (let token of tokens) {
+                const span = document.createElement('span');
+                span.className = 'token';
+                span.textContent = token + ' ';
+                if (token.includes('\n')) textElement.appendChild(document.createElement('br'));
+                textElement.appendChild(span);
+    
+                await new Promise(r => setTimeout(r, 25 + Math.random() * 25));
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+    
+        // Add static message
+        function addMessage(type, text, llm = null, sources = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+    
+            const avatar = type === 'user' ? '👤' : '🤖';
+            const name = type === 'user' ? 'You' : 'Assistant';
+    
+            const llmBadge = llm ? `<span class="llm-badge llm-${llm}">${llm}</span>` : '';
+    
+            let sourcesHTML = '';
+            if (sources?.length) {
+                sourcesHTML = '<div class="message-sources">📄 Sources:';
+                sources.forEach(src => {
+                    sourcesHTML += `<div class="source-item">• ${src}</div>`;
+                });
+                sourcesHTML += '</div>';
+            }
+    
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-header">${name}${llmBadge}</div>
+                    <div class="message-text">${text}</div>
+                    ${sourcesHTML}
+                </div>
+            `;
+    
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    
+        // Loading animation
+        function addLoadingMessage() {
+            const id = 'loading-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.id = id;
+            messageDiv.className = 'message bot-message';
+    
+            messageDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="message-header">Assistant</div>
+                    <div class="loading">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                </div>
+            `;
+    
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return id;
+        }
+    
+        // Sidebar history
+        function updateSidebar() {
+            if (chatHistory.length === 0) {
+                sidebarContent.innerHTML =
+                    '<p style="color:#64748b;font-size:12px;text-align:center;padding:20px 0;">No history yet</p>';
+                return;
+            }
+    
+            sidebarContent.innerHTML = '';
+            chatHistory.forEach((msg) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.textContent = msg.length > 50 ? msg.slice(0, 50) + '...' : msg;
+                item.title = msg;
+                item.addEventListener('click', () => {
+                    messageInput.value = msg;
+                    messageInput.focus();
+                });
+                sidebarContent.appendChild(item);
+            });
+        }
+    </script>
+    
+</body>
+</html>

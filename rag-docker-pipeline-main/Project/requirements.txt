@@ -1,0 +1,44 @@
+# --- Core Python Tools ---
+numpy
+tqdm
+
+# --- Text Processing ---
+nltk
+python-docx
+pdfplumber
+pytesseract
+pydub
+
+# --- Audio & Whisper ---
+openai-whisper
+ffmpeg-python
+
+# --- Image Handling / OCR ---
+opencv-python-headless
+
+# --- File Formats ---
+pydub
+
+# --- LlamaIndex RAG Framework ---
+llama-index
+llama-index-core
+llama-index-embeddings-huggingface
+llama-index-llms-groq
+llama-index-llms-ollama
+
+# --- Embeddings ---
+sentence-transformers
+
+# --- Vector DB ---
+chromadb
+
+# --- Tokenization ---
+tiktoken
+
+# --- LLM + API ---
+groq
+openai
+
+# --- Utility ---
+python-dotenv
+requests
